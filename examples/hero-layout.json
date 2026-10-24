@@ -1,1 +1,47 @@
-__FROM_WORKSPACE__
+{
+  "format": "collage-studio/v1",
+  "stage": { "width": 1280, "height": 720, "background": "#000000" },
+  "timeline": { "duration": 12, "loop": true, "mute": true },
+  "defaultFade": 0.45,
+  "cells": [
+    {
+      "id": "c1",
+      "rect": [0, 0, 794, 720],
+      "fit": "cover",
+      "start": 0.0,
+      "fade": 0.45,
+      "media": {
+        "kind": "video",
+        "file": "hero.mp4",
+        "sourceWidth": 1920,
+        "sourceHeight": 1080
+      }
+    },
+    {
+      "id": "c2",
+      "rect": [794, 0, 486, 360],
+      "fit": "cover",
+      "start": 0.6,
+      "fade": 0.5,
+      "media": {
+        "kind": "image",
+        "file": "top-right.jpg",
+        "sourceWidth": 1200,
+        "sourceHeight": 900
+      }
+    },
+    {
+      "id": "c3",
+      "rect": [794, 360, 486, 360],
+      "fit": "cover",
+      "start": 1.2,
+      "fade": 0.5,
+      "media": {
+        "kind": "image",
+        "file": "bottom-right.jpg",
+        "sourceWidth": 1200,
+        "sourceHeight": 900
+      }
+    }
+  ]
+}
