@@ -1,1 +1,1059 @@
-__FROM_WORKSPACE__
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collage Studio</title>
+<style>
+  :root{
+    --bg:#0e0f13; --panel:#171922; --panel2:#1e2130; --line:#2b2f3f;
+    --text:#e8eaf0; --muted:#8f97ad; --accent:#4f8cff; --accent2:#22d3ab;
+    --danger:#ff5c72; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+
+  /* ---------- top bar ---------- */
+  header{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--line);
+  }
+  header h1{font-size:15px;margin:0 10px 0 0;font-weight:650;letter-spacing:.2px}
+  header h1 span{color:var(--accent)}
+  .spacer{flex:1}
+  button,select,input[type=text],input[type=number]{
+    font:inherit; color:var(--text); background:var(--panel2);
+    border:1px solid var(--line); border-radius:8px; padding:6px 11px; cursor:pointer;
+  }
+  input[type=text],input[type=number]{cursor:text}
+  button:hover,select:hover{border-color:#3d4459;background:#242838}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.primary:hover{background:#3d7bf0;border-color:#3d7bf0}
+  button.ghost{background:transparent}
+  button.danger:hover{border-color:var(--danger);color:var(--danger)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .sep{width:1px;height:24px;background:var(--line)}
+  label.field{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+  label.field input[type=number]{width:66px}
+
+  /* ---------- main split ---------- */
+  main{flex:1;display:flex;min-height:0}
+  #stageWrap{
+    flex:1;min-width:0;position:relative;display:grid;place-items:center;
+    padding:22px;overflow:hidden;
+    background:
+      radial-gradient(circle at 1px 1px,#232739 1px,transparent 0) 0 0/26px 26px;
+  }
+  #stage{
+    position:relative; background:#000; border-radius:var(--radius);
+    box-shadow:0 18px 60px rgba(0,0,0,.55), 0 0 0 1px var(--line);
+    overflow:hidden;
+  }
+  .cell{
+    position:absolute; overflow:hidden; background:#0a0b10;
+    outline:0 solid transparent; transition:outline-color .12s, background .12s;
+  }
+  .cell.selected{outline:2px solid var(--accent); outline-offset:-2px; z-index:5}
+  .cell.dropTarget{background:#1b2438; outline:2px dashed var(--accent2); outline-offset:-2px}
+  .cell img,.cell video{width:100%;height:100%;object-fit:cover;display:block}
+  .cell .empty{
+    position:absolute;inset:0;display:grid;place-items:center;
+    color:#4a5169;font-size:11px;letter-spacing:.4px;text-transform:uppercase;
+    pointer-events:none;text-align:center;padding:6px;
+  }
+  .cell .badge{
+    position:absolute;top:4px;left:4px;background:rgba(0,0,0,.65);
+    color:#cfd6e8;font-size:10px;padding:2px 6px;border-radius:5px;
+    pointer-events:none;backdrop-filter:blur(4px);
+  }
+  .cell .badge.vid{color:var(--accent2)}
+  /* playback states */
+  #stage.playing .cell .empty{opacity:0}
+  .cell.fade{opacity:0;transition:opacity var(--fade,.45s) ease}
+  .cell.fade.in{opacity:1}
+
+  /* ---------- sidebar ---------- */
+  aside{
+    width:290px;flex:none;background:var(--panel);border-left:1px solid var(--line);
+    overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px;
+  }
+  aside h2{
+    font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);
+    margin:0 0 2px;font-weight:600;
+  }
+  .group{display:flex;flex-direction:column;gap:8px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .presetGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .presetGrid button{font-size:12px;padding:7px 6px;text-align:left}
+  .hint{color:var(--muted);font-size:12px;line-height:1.5}
+  .swatchRow{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  input[type=color]{
+    width:38px;height:28px;padding:0;border:1px solid var(--line);
+    border-radius:6px;background:var(--panel2);cursor:pointer;
+  }
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .selInfo{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px}
+  .selInfo.empty{color:var(--muted);font-size:12px}
+  .kv{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0}
+  .kv span:first-child{color:var(--muted)}
+  code{background:#0b0d14;padding:1px 5px;border-radius:4px;font-size:12px;color:var(--accent2)}
+  details summary{cursor:pointer;color:var(--muted);font-size:12px}
+  details summary:hover{color:var(--text)}
+
+  /* ---------- transport ---------- */
+  #transport{
+    display:flex;align-items:center;gap:12px;padding:10px 14px;
+    background:var(--panel);border-top:1px solid var(--line);
+  }
+  #playBtn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;padding:0}
+  #playBtn svg{width:17px;height:17px;fill:#fff}
+  #scrub{flex:1;accent-color:var(--accent);cursor:pointer}
+  #timecode{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:104px;text-align:right}
+
+  /* ---------- modal ---------- */
+  #modal{
+    position:fixed;inset:0;background:rgba(6,7,11,.82);display:none;
+    place-items:center;z-index:100;padding:20px;backdrop-filter:blur(3px);
+  }
+  #modal.open{display:grid}
+  .sheet{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    width:min(680px,100%);max-height:86vh;display:flex;flex-direction:column;
+    box-shadow:0 30px 90px rgba(0,0,0,.6);
+  }
+  .sheet header{border-radius:14px 14px 0 0;justify-content:space-between}
+  .sheet .body{padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+  .sheet .foot{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+  textarea{
+    width:100%;min-height:230px;resize:vertical;background:#0b0d14;color:var(--accent2);
+    border:1px solid var(--line);border-radius:8px;padding:12px;
+    font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  .warn{color:#ffbf5c;font-size:12px}
+  .err{color:var(--danger);font-size:12px}
+  .ok{color:var(--accent2);font-size:12px}
+  kbd{
+    background:#0b0d14;border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:4px;padding:0 5px;font-size:11px;font-family:inherit;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Collage<span>Studio</span></h1>
+  <button id="playBtnTop" class="primary">▶ Play</button>
+  <div class="sep"></div>
+  <button id="addCell">+ Cell</button>
+  <button id="delCell" class="danger">− Cell</button>
+  <button id="clearAll" class="danger ghost">Clear</button>
+  <div class="sep"></div>
+  <button id="saveBtn">Save layout</button>
+  <button id="loadBtn">Load layout</button>
+  <div class="spacer"></div>
+  <span class="hint" id="dropHint">Drop files anywhere · <kbd>Space</kbd> play/pause</span>
+</header>
+
+<main>
+  <div id="stageWrap">
+    <div id="stage"></div>
+  </div>
+
+  <aside>
+    <div class="group">
+      <h2>Stage</h2>
+      <div class="row">
+        <label class="field">W <input type="number" id="stageW" value="1280" min="200" max="7680" step="10"></label>
+        <label class="field">H <input type="number" id="stageH" value="720" min="200" max="4320" step="10"></label>
+      </div>
+      <label class="field" style="justify-content:space-between">
+        <span>Background</span><input type="color" id="stageBg" value="#000000">
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>Layout presets</h2>
+      <div class="presetGrid" id="presets"></div>
+    </div>
+
+    <div class="group">
+      <h2>Selected cell</h2>
+      <div id="selInfo" class="selInfo empty">Nothing selected — click a cell.</div>
+
+      <div id="cellControls" style="display:none;flex-direction:column;gap:9px">
+        <div class="row">
+          <label class="field">X <input type="number" id="cX" step="1" style="width:62px"></label>
+          <label class="field">Y <input type="number" id="cY" step="1" style="width:62px"></label>
+          <label class="field">W <input type="number" id="cW" step="1" style="width:62px"></label>
+          <label class="field">H <input type="number" id="cH" step="1" style="width:62px"></label>
+        </div>
+        <label class="field" style="justify-content:space-between">
+          <span>Object fit</span>
+          <select id="cFit">
+            <option value="cover">cover (crop)</option>
+            <option value="contain">contain (letterbox)</option>
+            <option value="fill">fill (stretch)</option>
+          </select>
+        </label>
+        <div>
+          <div class="swatchRow"><span class="hint">Timeline start</span><span class="hint" id="cStartV">0.00s</span></div>
+          <input type="range" id="cStart" min="0" max="20" step="0.05" value="0">
+        </div>
+        <div>
+          <div class="swatchRow"><span class="hint">Fade in</span><span class="hint" id="cFadeV">0.45s</span></div>
+          <input type="range" id="cFade" min="0" max="3" step="0.05" value="0.45">
+        </div>
+        <div class="row">
+          <button id="bringFront">Bring to front</button>
+          <button id="sendBack">Send to back</button>
+        </div>
+        <button id="clearCell" class="ghost danger">Remove media</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Playback</h2>
+      <label class="field" style="justify-content:space-between">
+        <span>Loop</span><input type="checkbox" id="loopChk" checked>
+      </label>
+      <label class="field" style="justify-content:space-between">
+        <span>Mute videos</span><input type="checkbox" id="muteChk" checked>
+      </label>
+      <div>
+        <div class="swatchRow"><span class="hint">Default fade</span><span class="hint" id="defFadeV">0.45s</span></div>
+        <input type="range" id="defFade" min="0" max="3" step="0.05" value="0.45">
+      </div>
+    </div>
+
+    <details>
+      <summary>Shortcuts &amp; tips</summary>
+      <p class="hint" style="margin-top:8px">
+        <kbd>Space</kbd> play/pause · <kbd>Del</kbd> remove media from selected cell ·
+        <kbd>←</kbd>/<kbd>→</kbd> nudge cell · <kbd>Shift</kbd>+arrows move 10px ·
+        drag a file straight onto a cell to target it.
+      </p>
+      <p class="hint">
+        Videos play in loop while the timeline runs. A cell's <em>start</em> is when it
+        fades in on the timeline. Export the layout and feed it to
+        <code>render_collage.py</code> for a shareable MP4.
+      </p>
+    </details>
+  </aside>
+</main>
+
+<div id="transport">
+  <button id="playBtn" class="primary" title="Play / pause (Space)">
+    <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+  </button>
+  <input type="range" id="scrub" min="0" max="20" step="0.01" value="0">
+  <div id="timecode">00:00.00 / 00:00.00</div>
+</div>
+
+<div id="modal">
+  <div class="sheet">
+    <header>
+      <strong id="modalTitle">Layout JSON</strong>
+      <button id="modalClose" class="ghost">Close</button>
+    </header>
+    <div class="body">
+      <p class="hint" id="modalHint"></p>
+      <textarea id="modalText" spellcheck="false"></textarea>
+      <div id="modalMsg"></div>
+    </div>
+    <div class="foot">
+      <button id="modalCancel" class="ghost">Cancel</button>
+      <button id="modalOk" class="primary">Apply</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ============================================================
+   Collage Studio — interactive board for images + video
+   Layout JSON is the interchange format consumed by
+   render_collage.py, so designs round-trip between the two.
+   ============================================================ */
+
+const stage      = document.getElementById('stage');
+const stageWrap  = document.getElementById('stageWrap');
+
+/** @type {{w:number,h:number,bg:string,cells:Cell[],timeline:number,fade:number}} */
+let doc = {
+  w: 1280, h: 720, bg: '#000000',
+  timeline: 20,           // seconds; grows automatically to fit content
+  fade: 0.45,             // default fade-in for new cells
+  cells: []
+};
+
+let uid = 0;
+const nextId = () => `c${++uid}`;
+let selectedId = null;
+let playing = false;
+let elapsed = 0;          // timeline position, seconds
+let lastFrame = 0;
+let rafId = null;
+
+/* ---------- model helpers ---------- */
+
+function makeCell(over = {}) {
+  return {
+    id: nextId(),
+    x: 40, y: 40, w: 400, h: 300,
+    fit: 'cover',
+    start: 0,
+    fade: doc.fade,
+    media: null,          // {kind:'image'|'video', name, url, naturalW, naturalH}
+    ...over
+  };
+}
+
+const getCell = id => doc.cells.find(c => c.id === id);
+
+function resizeStage() {
+  stage.style.width  = doc.w + 'px';
+  stage.style.height = doc.h + 'px';
+  stage.style.background = doc.bg;
+
+  // Fit the stage inside the available area without distorting it.
+  const pad = 44;
+  const availW = stageWrap.clientWidth  - pad;
+  const availH = stageWrap.clientHeight - pad;
+  const scale = Math.min(availW / doc.w, availH / doc.h, 1);
+  stage.style.transform = `scale(${scale})`;
+  stage.style.transformOrigin = 'center center';
+}
+
+function autoTimeline() {
+  // Timeline must be long enough for every cell to be visible.
+  let need = 0;
+  for (const c of doc.cells) need = Math.max(need, c.start + c.fade + 0.5);
+  const target = Math.max(need, 20);
+  if (Math.abs(target - doc.timeline) > 0.001) {
+    doc.timeline = target;
+    scrub.max = doc.timeline;
+    scrub.value = Math.min(elapsed, doc.timeline);
+  } else {
+    scrub.max = doc.timeline;
+  }
+}
+
+/* ---------- rendering ---------- */
+
+function renderAll() {
+  stage.replaceChildren();
+  for (const c of doc.cells) stage.appendChild(renderCell(c));
+  resizeStage();
+  autoTimeline();
+  syncSelection();
+  updateTimecode();
+  applyPlaybackState();
+}
+
+function renderCell(c) {
+  let el = document.getElementById('cell-' + c.id);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'cell';
+    el.id = 'cell-' + c.id;
+    el.tabIndex = 0;
+
+    el.addEventListener('pointerdown', e => {
+      select(c.id);
+      startDrag(e, c, el);
+    });
+    el.addEventListener('dblclick', () => openFilePicker(c.id));
+
+    // per-cell drop target
+    el.addEventListener('dragover', e => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.add('dropTarget');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('dropTarget'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.remove('dropTarget');
+      loadFilesInto(c.id, e.dataTransfer.files);
+    });
+  }
+
+  applyCellGeometry(c, el);
+  fillCellMedia(c, el);
+  return el;
+}
+
+function applyCellGeometry(c, el = document.getElementById('cell-' + c.id)) {
+  if (!el) return;
+  el.style.left   = c.x + 'px';
+  el.style.top    = c.y + 'px';
+  el.style.width  = c.w + 'px';
+  el.style.height = c.h + 'px';
+  el.style.setProperty('--fade', c.fade + 's');
+}
+
+function fillCellMedia(c, el) {
+  el.replaceChildren();
+
+  if (!c.media) {
+    const d = document.createElement('div');
+    d.className = 'empty';
+    d.textContent = 'drop image / mp4';
+    el.appendChild(d);
+    return;
+  }
+
+  const m = c.media;
+  let node;
+  if (m.kind === 'video') {
+    node = document.createElement('video');
+    node.src = m.url;
+    node.muted = muteChk.checked;
+    node.loop = true;
+    node.playsInline = true;
+    node.preload = 'auto';
+    // A video whose start hasn't arrived should sit on its first frame.
+    node.addEventListener('loadeddata', () => { node.pause(); node.currentTime = 0; });
+  } else {
+    node = document.createElement('img');
+    node.src = m.url;
+    node.draggable = false;
+  }
+  node.style.objectFit = c.fit;
+  el.appendChild(node);
+
+  const badge = document.createElement('div');
+  badge.className = 'badge' + (m.kind === 'video' ? ' vid' : '');
+  badge.textContent = (m.kind === 'video' ? '▶ ' : '◼ ') + m.name;
+  el.appendChild(badge);
+}
+
+function syncSelection() {
+  for (const el of stage.children) {
+    el.classList.toggle('selected', el.id === 'cell-' + selectedId);
+  }
+  const c = selectedId ? getCell(selectedId) : null;
+  if (!c) {
+    selInfo.className = 'selInfo empty';
+    selInfo.textContent = 'Nothing selected — click a cell.';
+    cellControls.style.display = 'none';
+    return;
+  }
+  selInfo.className = 'selInfo';
+  const m = c.media;
+  selInfo.innerHTML = `
+    <div class="kv"><span>Cell</span><span><code>${c.id}</code></span></div>
+    <div class="kv"><span>Media</span><span>${m ? m.name : '—'}</span></div>
+    ${m && m.naturalW ? `<div class="kv"><span>Source</span><span>${m.naturalW}×${m.naturalH}</span></div>` : ''}
+    <div class="kv"><span>Position</span><span>${c.x}, ${c.y}</span></div>
+  `;
+  cellControls.style.display = 'flex';
+  cX.value = Math.round(c.x); cY.value = Math.round(c.y);
+  cW.value = Math.round(c.w); cH.value = Math.round(c.h);
+  cFit.value = c.fit;
+  cStart.max = Math.max(20, Math.ceil(doc.timeline));
+  cStart.value = c.start; cStartV.textContent = c.start.toFixed(2) + 's';
+  cFade.value = c.fade;   cFadeV.textContent  = c.fade.toFixed(2) + 's';
+}
+
+/* ---------- selection + drag ---------- */
+
+function select(id) {
+  selectedId = id;
+  syncSelection();
+}
+
+function startDrag(e, c, el) {
+  // Don't hijack a control inside the cell.
+  if (e.button !== 0) return;
+  const startX = e.clientX, startY = e.clientY;
+  const ox = c.x, oy = c.y;
+
+  // Scale factor: stage is CSS-scaled to fit, so screen px ≠ model px.
+  const rect = stage.getBoundingClientRect();
+  const scale = rect.width / doc.w || 1;
+
+  const move = ev => {
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    c.x = Math.round(ox + dx);
+    c.y = Math.round(oy + dy);
+    applyCellGeometry(c, el);
+    cX.value = c.x; cY.value = c.y;
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+/* ---------- file intake ---------- */
+
+const VIDEO_RE = /\.(mp4|webm|mov|m4v|ogv)$/i;
+const IMAGE_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
+
+function kindOf(file) {
+  if (file.type.startsWith('video/') || VIDEO_RE.test(file.name)) return 'video';
+  if (file.type.startsWith('image/') || IMAGE_RE.test(file.name)) return 'image';
+  return null;
+}
+
+function probe(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const kind = kindOf(file);
+    if (!kind) { resolve(null); return; }
+
+    if (kind === 'image') {
+      const img = new Image();
+      img.onload  = () => resolve({ kind, name: file.name, url,
+                                    naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+      img.onerror = () => resolve({ kind, name: file.name, url, naturalW: 0, naturalH: 0 });
+      img.src = url;
+    } else {
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => resolve({ kind, name: file.name, url,
+                                           naturalW: v.videoWidth, naturalH: v.videoHeight,
+                                           duration: v.duration });
+      v.onerror = () => resolve({ kind, name: file.name, url, naturalW: 0, naturalH: 0 });
+      v.src = url;
+    }
+  });
+}
+
+async function loadFilesInto(cellId, fileList) {
+  const files = [...fileList];
+  if (!files.length) return;
+
+  const c = getCell(cellId);
+  if (!c) return;
+
+  // First recognised file fills the targeted cell…
+  const infos = [];
+  for (const f of files) {
+    const info = await probe(f);
+    if (info) infos.push(info);
+  }
+  if (!infos.length) { flash('No image or video found in that drop.'); return; }
+
+  c.media = infos.shift();
+  fillCellMedia(c, document.getElementById('cell-' + c.id));
+  syncSelection();
+
+  // …the rest spill into brand-new cells laid out in a tidy grid.
+  if (infos.length) {
+    for (const info of infos) {
+      const nc = makeCell();
+      Object.assign(nc, nextFreeRect());
+      nc.media = info;
+      doc.cells.push(nc);
+    }
+    renderAll();
+  }
+}
+
+/** Find a reasonable slot for a newly created cell. */
+function nextFreeRect() {
+  const cols = Math.max(1, Math.floor(doc.w / 420));
+  const i = doc.cells.length;
+  const cw = Math.floor(doc.w / cols) - 30;
+  const ch = Math.floor(cw * 9 / 16);
+  const col = i % cols, row = Math.floor(i / cols);
+  return { x: 20 + col * (cw + 20), y: 20 + row * (ch + 20), w: cw, h: ch };
+}
+
+/* whole-window drop: fill the first empty cell, else create one */
+window.addEventListener('dragover', e => { e.preventDefault(); });
+window.addEventListener('drop', async e => {
+  e.preventDefault();
+  if (e.target.closest('.cell')) return;   // handled per-cell
+  const files = [...e.dataTransfer.files];
+  if (!files.length) return;
+  const empty = doc.cells.find(c => !c.media);
+  if (empty) {
+    await loadFilesInto(empty.id, files);
+  } else {
+    const nc = makeCell({ ...nextFreeRect() });
+    doc.cells.push(nc);
+    renderAll();
+    await loadFilesInto(nc.id, files);
+  }
+});
+
+function openFilePicker(cellId) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.multiple = true;
+  inp.accept = 'image/*,video/*';
+  inp.onchange = () => loadFilesInto(cellId, inp.files);
+  inp.click();
+}
+
+/* ---------- presets ---------- */
+
+const PRESETS = {
+  '1 × 1':       [[0,0,1,1]],
+  '2 × 1':       [[0,0,.5,1],[.5,0,.5,1]],
+  '1 × 2':       [[0,0,1,.5],[0,.5,1,.5]],
+  '2 × 2':       [[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]],
+  '3 × 3':       Array.from({length:9},(_,i)=>[(i%3)/3,Math.floor(i/3)/3,1/3,1/3]),
+  'Hero left':   [[0,0,.62,1],[.62,0,.38,.5],[.62,.5,.38,.5]],
+  'Hero right':  [[.38,0,.62,1],[0,0,.38,.5],[0,.5,.38,.5]],
+  'Hero top':    [[0,0,1,.6],[0,.6,.5,.4],[.5,.6,.5,.4]],
+  'Strip 4':     [[0,0,.25,1],[.25,0,.25,1],[.5,0,.25,1],[.75,0,.25,1]],
+  '2 + 4':       [[0,0,.5,1],[.5,0,.25,.5],[.75,0,.25,.5],[.5,.5,.25,.5],[.75,.5,.25,.5]],
+  'Collage 5':   [[0,0,.5,.55],[.5,0,.5,.55],[0,.55,.34,.45],[.34,.55,.33,.45],[.67,.55,.33,.45]],
+  'Diamond 4':   [[.25,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5],[.25,.5,.5,.25]]
+};
+
+function applyPreset(name) {
+  const frames = PRESETS[name];
+  if (!frames) return;
+
+  // Keep existing media in reading order, rebuild the cell set around it.
+  const media = doc.cells.map(c => c.media).filter(Boolean);
+  const fades = doc.cells.map(c => ({ fade: c.fade, start: c.start }));
+
+  doc.cells = frames.map((f, i) => {
+    const [fx, fy, fw, fh] = f;
+    const keep = fades[i] || {};
+    return makeCell({
+      x: Math.round(fx * doc.w), y: Math.round(fy * doc.h),
+      w: Math.round(fw * doc.w), h: Math.round(fh * doc.h),
+      media: media[i] || null,
+      fade: keep.fade ?? doc.fade,
+      start: keep.start ?? 0
+    });
+  });
+
+  if (!selectedId || !getCell(selectedId)) selectedId = null;
+  renderAll();
+}
+
+/* ---------- playback engine ---------- */
+
+const playIcon = document.getElementById('playIcon');
+const PLAY_PATH  = 'M8 5v14l11-7z';
+const PAUSE_PATH = 'M6 5h4v14H6zm8 0h4v14h-4z';
+
+function setPlaying(v) {
+  playing = v;
+  const p = playing ? PAUSE_PATH : PLAY_PATH;
+  const pathNode = playIcon.tagName === 'path' ? playIcon : playIcon.querySelector('path');
+  if (pathNode) pathNode.setAttribute('d', p);
+  playBtnTop.textContent = playing ? '❚❚ Pause' : '▶ Play';
+  applyPlaybackState();
+  if (playing) {
+    lastFrame = performance.now();
+    if (rafId == null) rafId = requestAnimationFrame(tick);
+  } else {
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+    for (const el of stage.children) {
+      const v = el.querySelector('video');
+      if (v) v.pause();
+    }
+  }
+}
+
+function applyPlaybackState() {
+  for (const c of doc.cells) {
+    const el = document.getElementById('cell-' + c.id);
+    if (!el) continue;
+    const v = el.querySelector('video');
+    if (v) v.muted = muteChk.checked;
+
+    if (!playing && elapsed === 0) {
+      // Idle preview: everything visible, no fade state carried over.
+      el.classList.remove('fade', 'in');
+      el.style.opacity = '';
+    }
+  }
+  stage.classList.toggle('playing', playing);
+}
+
+function tick(now) {
+  if (!playing) { rafId = null; return; }
+  const dt = Math.min((now - lastFrame) / 1000, 0.25);
+  lastFrame = now;
+  elapsed += dt;
+
+  if (elapsed >= doc.timeline) {
+    if (loopChk.checked) {
+      elapsed = 0;
+      for (const el of stage.children) {
+        const v = el.querySelector('video');
+        if (v) { try { v.currentTime = 0; } catch (_) {} }
+      }
+    } else {
+      elapsed = doc.timeline;
+      setPlaying(false);
+      updateScrub();
+      return;
+    }
+  }
+
+  applyTimeline(elapsed);
+  updateScrub();
+  rafId = requestAnimationFrame(tick);
+}
+
+function applyTimeline(t) {
+  for (const c of doc.cells) {
+    const el = document.getElementById('cell-' + c.id);
+    if (!el) continue;
+    const v = el.querySelector('video');
+
+    const active = t >= c.start;
+    if (c.fade > 0) {
+      el.classList.add('fade');
+      // progress through the fade window
+      const p = Math.min(Math.max((t - c.start) / c.fade, 0), 1);
+      el.style.opacity = p;
+      el.classList.toggle('in', p >= 1);
+    } else {
+      el.style.opacity = active ? '' : 0;
+    }
+
+    if (v) {
+      if (active && v.paused && v.readyState >= 2) v.play().catch(() => {});
+      if (!active && !v.paused) v.pause();
+    }
+  }
+}
+
+function updateScrub() {
+  scrub.value = Math.min(elapsed, doc.timeline);
+  updateTimecode();
+}
+
+function updateTimecode() {
+  timecode.textContent = `${fmt(elapsed)} / ${fmt(doc.timeline)}`;
+}
+function fmt(s) {
+  const m = Math.floor(s / 60);
+  const r = s - m * 60;
+  return `${String(m).padStart(2,'0')}:${r.toFixed(2).padStart(5,'0')}`;
+}
+
+/* ---------- transport wiring ---------- */
+
+function togglePlay() {
+  if (!playing && elapsed >= doc.timeline - 0.001) elapsed = 0;
+  setPlaying(!playing);
+}
+
+playBtn.onclick = togglePlay;
+playBtnTop.onclick = togglePlay;
+
+scrub.oninput = () => {
+  elapsed = parseFloat(scrub.value);
+  applyTimeline(elapsed);
+  updateTimecode();
+  if (!playing) {
+    // scrubbing while paused previews that moment
+    for (const el of stage.children) {
+      const v = el.querySelector('video');
+      if (!v) continue;
+      const c = getCell(el.id.slice(5));
+      if (c && elapsed >= c.start && v.paused) v.play().catch(() => {});
+    }
+  }
+};
+
+muteChk.onchange = () => {
+  for (const el of stage.children) {
+    const v = el.querySelector('video');
+    if (v) v.muted = muteChk.checked;
+  }
+};
+
+/* ---------- sidebar wiring ---------- */
+
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+stageW.oninput = () => { doc.w = clamp(+stageW.value || 1280, 200, 7680); layoutScaled(); };
+stageH.oninput = () => { doc.h = clamp(+stageH.value || 720,  200, 4320); layoutScaled(); };
+stageBg.oninput = () => { doc.bg = stageBg.value; stage.style.background = doc.bg; };
+
+/** Rescale cells proportionally when the stage dimensions change. */
+let lastW = doc.w, lastH = doc.h;
+function layoutScaled() {
+  const sx = doc.w / lastW, sy = doc.h / lastH;
+  if (isFinite(sx) && isFinite(sy) && sx > 0 && sy > 0) {
+    for (const c of doc.cells) {
+      c.x = Math.round(c.x * sx); c.y = Math.round(c.y * sy);
+      c.w = Math.round(c.w * sx); c.h = Math.round(c.h * sy);
+      applyCellGeometry(c);
+    }
+  }
+  lastW = doc.w; lastH = doc.h;
+  resizeStage(); autoTimeline(); syncSelection();
+}
+
+function withSel(fn) {
+  const c = selectedId ? getCell(selectedId) : null;
+  if (!c) return;
+  fn(c);
+  applyCellGeometry(c);
+  syncSelection();
+  autoTimeline();
+}
+
+cX.oninput = () => withSel(c => c.x = clamp(+cX.value || 0, -c.w, doc.w));
+cY.oninput = () => withSel(c => c.y = clamp(+cY.value || 0, -c.h, doc.h));
+cW.oninput = () => withSel(c => c.w = clamp(+cW.value || 40, 20, doc.w * 3));
+cH.oninput = () => withSel(c => c.h = clamp(+cH.value || 40, 20, doc.h * 3));
+
+cFit.onchange = () => withSel(c => {
+  c.fit = cFit.value;
+  const node = document.getElementById('cell-' + c.id)?.querySelector('img,video');
+  if (node) node.style.objectFit = c.fit;
+});
+
+cStart.oninput = () => withSel(c => {
+  c.start = parseFloat(cStart.value);
+  cStartV.textContent = c.start.toFixed(2) + 's';
+  autoTimeline();
+  applyTimeline(elapsed);
+});
+
+cFade.oninput = () => withSel(c => {
+  c.fade = parseFloat(cFade.value);
+  cFadeV.textContent = c.fade.toFixed(2) + 's';
+  const el = document.getElementById('cell-' + c.id);
+  if (el) el.style.setProperty('--fade', c.fade + 's');
+});
+
+bringFront.onclick = () => withSel(c => {
+  doc.cells = doc.cells.filter(x => x !== c); doc.cells.push(c); renderAll();
+});
+sendBack.onclick = () => withSel(c => {
+  doc.cells = doc.cells.filter(x => x !== c); doc.cells.unshift(c); renderAll();
+});
+
+clearCell.onclick = () => withSel(c => {
+  if (c.media?.url) URL.revokeObjectURL(c.media.url);
+  c.media = null;
+  fillCellMedia(c, document.getElementById('cell-' + c.id));
+  syncSelection();
+});
+
+defFade.oninput = () => {
+  doc.fade = parseFloat(defFade.value);
+  defFadeV.textContent = doc.fade.toFixed(2) + 's';
+};
+
+addCell.onclick = () => {
+  const c = makeCell({ ...nextFreeRect() });
+  doc.cells.push(c);
+  renderAll();
+  select(c.id);
+};
+
+delCell.onclick = () => {
+  if (!selectedId) return;
+  const c = getCell(selectedId);
+  if (c?.media?.url) URL.revokeObjectURL(c.media.url);
+  doc.cells = doc.cells.filter(x => x.id !== selectedId);
+  selectedId = null;
+  renderAll();
+};
+
+clearAll.onclick = () => {
+  if (!doc.cells.length) return;
+  if (!confirm('Remove every cell and its media?')) return;
+  for (const c of doc.cells) if (c.media?.url) URL.revokeObjectURL(c.media.url);
+  doc.cells = [];
+  selectedId = null;
+  renderAll();
+};
+
+/* ---------- presets UI ---------- */
+for (const name of Object.keys(PRESETS)) {
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.onclick = () => applyPreset(name);
+  presets.appendChild(b);
+}
+
+/* ---------- keyboard ---------- */
+window.addEventListener('keydown', e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (typing) return;
+
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
+
+  const c = selectedId ? getCell(selectedId) : null;
+  if (!c) return;
+  const step = e.shiftKey ? 10 : 1;
+
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); c.x -= step; }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); c.x += step; }
+  else if (e.key === 'ArrowUp')    { e.preventDefault(); c.y -= step; }
+  else if (e.key === 'ArrowDown')  { e.preventDefault(); c.y += step; }
+  else if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    if (c.media?.url) URL.revokeObjectURL(c.media.url);
+    c.media = null;
+    fillCellMedia(c, document.getElementById('cell-' + c.id));
+    syncSelection();
+    return;
+  } else return;
+
+  applyCellGeometry(c);
+  syncSelection();
+});
+
+/* ---------- save / load ---------- */
+
+function serialise() {
+  // Media file handles can't be serialised; record the metadata so the
+  // Python renderer knows which source files to pull from a folder.
+  return {
+    format: 'collage-studio/v1',
+    stage: { width: doc.w, height: doc.h, background: doc.bg },
+    timeline: { duration: doc.timeline, loop: loopChk.checked, mute: muteChk.checked },
+    defaultFade: doc.fade,
+    cells: doc.cells.map(c => ({
+      id: c.id,
+      rect: [c.x, c.y, c.w, c.h],
+      fit: c.fit,
+      start: +c.start.toFixed(3),
+      fade: +c.fade.toFixed(3),
+      media: c.media ? {
+        kind: c.media.kind,
+        file: c.media.name,               // filename the renderer looks for
+        sourceWidth: c.media.naturalW || null,
+        sourceHeight: c.media.naturalH || null
+      } : null
+    }))
+  };
+}
+
+function applyLayout(obj) {
+  if (!obj || !Array.isArray(obj.cells)) throw new Error('Not a Collage Studio layout.');
+
+  // Match referenced filenames against media already loaded this session.
+  const byName = new Map();
+  for (const c of doc.cells) if (c.media) byName.set(c.media.name, c.media);
+
+  for (const c of doc.cells) {
+    if (c.media?.url && !byName.has(c.media.name)) URL.revokeObjectURL(c.media.url);
+  }
+
+  const s = obj.stage || {};
+  doc.w = s.width || 1280;
+  doc.h = s.height || 720;
+  doc.bg = s.background || '#000000';
+  doc.fade = obj.defaultFade ?? 0.45;
+  doc.timeline = obj.timeline?.duration ?? 20;
+
+  uid = 0;
+  doc.cells = obj.cells.map(spec => {
+    const [x, y, w, h] = spec.rect || [40, 40, 400, 300];
+    const media = spec.media ? (byName.get(spec.media.file) || {
+      kind: spec.media.kind, name: spec.media.file, url: '',
+      naturalW: spec.media.sourceWidth || 0, naturalH: spec.media.sourceHeight || 0,
+      missing: true
+    }) : null;
+    const cell = makeCell({
+      x, y, w, h, fit: spec.fit || 'cover',
+      start: spec.start ?? 0, fade: spec.fade ?? doc.fade, media
+    });
+    cell.id = spec.id && /^[A-Za-z0-9_-]+$/.test(spec.id) ? spec.id : cell.id;
+    return cell;
+  });
+
+  stageW.value = doc.w; stageH.value = doc.h; stageBg.value = doc.bg;
+  defFade.value = doc.fade; defFadeV.textContent = doc.fade.toFixed(2) + 's';
+  selectedId = null;
+  elapsed = 0;
+  lastW = doc.w; lastH = doc.h;
+  renderAll();
+}
+
+/* ---------- modal ---------- */
+let modalMsgEl = document.getElementById('modalMsg');
+
+function openModal(mode) {
+  modalMsgEl.textContent = '';
+  modalMsgEl.className = '';
+
+  if (mode === 'save') {
+    modalTitle.textContent = 'Layout JSON — export';
+    modalHint.innerHTML = 'Save this as <code>layout.json</code> next to your media, then run ' +
+                          '<code>python render_collage.py layout.json</code>.';
+    modalText.value = JSON.stringify(serialise(), null, 2);
+    modalOk.textContent = 'Copy';
+    modalOk.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(modalText.value);
+        modalMsgEl.textContent = 'Copied to clipboard.'; modalMsgEl.className = 'ok';
+      } catch (err) {
+        modalText.select();
+        modalMsgEl.textContent = 'Press Ctrl/Cmd+C to copy.'; modalMsgEl.className = 'warn';
+      }
+    };
+    modalCancel.textContent = 'Download .json';
+    modalCancel.onclick = () => {
+      const blob = new Blob([modalText.value], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'layout.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    };
+  } else {
+    modalTitle.textContent = 'Layout JSON — import';
+    modalHint.textContent = 'Paste a layout to rebuild the board. Media is re-attached by filename when it is already loaded in this session.';
+    modalText.value = '';
+    modalOk.textContent = 'Apply';
+    modalOk.onclick = () => {
+      try {
+        applyLayout(JSON.parse(modalText.value));
+        modalMsgEl.textContent = 'Layout applied.'; modalMsgEl.className = 'ok';
+        setTimeout(closeModal, 400);
+      } catch (err) {
+        modalMsgEl.textContent = err.message; modalMsgEl.className = 'err';
+      }
+    };
+    modalCancel.textContent = 'Cancel';
+    modalCancel.onclick = closeModal;
+  }
+  modal.classList.add('open');
+}
+function closeModal() { modal.classList.remove('open'); }
+
+saveBtn.onclick = () => openModal('save');
+loadBtn.onclick  = () => openModal('load');
+modalClose.onclick = closeModal;
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ---------- status flash ---------- */
+function flash(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:86px;left:50%;transform:translateX(-50%);' +
+    'background:#1e2130;border:1px solid #2b2f3f;padding:9px 16px;border-radius:8px;' +
+    'font-size:13px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.5)';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+/* ---------- boot ---------- */
+window.addEventListener('resize', resizeStage);
+applyPreset('2 × 2');
+setPlaying(false);
+})();
+</script>
+</body>
+</html>
